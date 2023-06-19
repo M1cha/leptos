@@ -18,7 +18,26 @@ pub fn App(cx: Scope) -> impl IntoView {
             <main>
                 <Routes>
                     // We’ll load the home page with out-of-order streaming and <Suspense/>
-                    <Route path="" view=HomePage/>
+                    <Route path="" view=move |cx| view!{cx,
+                        <Suspense fallback=move || view! { cx, <p>"Loading posts..."</p> }>
+                            <ErrorBoundary fallback=|cx, errors| {
+                                view! { cx,
+                                    <div class="error">
+                                        <h1>"Something went wrong."</h1>
+                                        <ul>
+                                        {move || errors.get()
+                                            .into_iter()
+                                            .map(|(_, error)| view! { cx, <li>{error.to_string()} </li> })
+                                            .collect_view(cx)
+                                        }
+                                        </ul>
+                                    </div>
+                                }
+                            }>
+                                <HomePage/>
+                            </ErrorBoundary>
+                        </Suspense>
+                    }/>
 
                     // We'll load the posts with async rendering, so they can set
                     // the title and metadata *after* loading the data
@@ -46,20 +65,19 @@ fn HomePage(cx: Scope) -> impl IntoView {
 
     view! { cx,
         <h1>"My Great Blog"</h1>
-        <Suspense fallback=move || view! { cx, <p>"Loading posts..."</p> }>
-            <ul>
-                {move || {
-                    posts.with(cx, |posts| posts
-                        .clone()
-                        .map(|posts| {
-                            posts.iter()
-                            .map(|post| view! { cx, <li><a href=format!("/post/{}", post.id)>{&post.title}</a> "|" <a href=format!("/post_in_order/{}", post.id)>{&post.title}"(in order)"</a></li>})
-                            .collect_view(cx)
-                        })
-                    )
-                }}
-            </ul>
-        </Suspense>
+
+        <ul>
+            {move || {
+                posts.with(cx, |posts| posts
+                    .clone()
+                    .map(|posts| {
+                        posts.iter()
+                        .map(|post| view! { cx, <li><a href=format!("/post/{}", post.id)>{&post.title}</a> "|" <a href=format!("/post_in_order/{}", post.id)>{&post.title}"(in order)"</a></li>})
+                        .collect_view(cx)
+                    })
+                )
+            }}
+        </ul>
     }
 }
 
@@ -174,13 +192,7 @@ pub struct PostMetadata {
 #[server(ListPostMetadata, "/api")]
 pub async fn list_post_metadata() -> Result<Vec<PostMetadata>, ServerFnError> {
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    Ok(POSTS
-        .iter()
-        .map(|data| PostMetadata {
-            id: data.id,
-            title: data.title.clone(),
-        })
-        .collect())
+    Err(ServerFnError::ServerError("well, well, ...".to_string()))
 }
 
 #[server(GetPost, "/api")]
